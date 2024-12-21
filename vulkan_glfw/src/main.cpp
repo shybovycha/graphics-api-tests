@@ -403,7 +403,9 @@ int main() {
 
     VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
     VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
-    VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities, framebufferWidth, framebufferHeight);
+    VkExtent2D swapChainExtent = chooseSwapExtent(swapChainSupport.capabilities, framebufferWidth, framebufferHeight);
+
+    VkFormat swapChainImageFormat = surfaceFormat.format;
 
     uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
 
@@ -418,7 +420,7 @@ int main() {
     swapChainCreateInfo.minImageCount = imageCount;
     swapChainCreateInfo.imageFormat = surfaceFormat.format;
     swapChainCreateInfo.imageColorSpace = surfaceFormat.colorSpace;
-    swapChainCreateInfo.imageExtent = extent;
+    swapChainCreateInfo.imageExtent = swapChainExtent;
     swapChainCreateInfo.imageArrayLayers = 1;
     swapChainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
@@ -444,7 +446,108 @@ int main() {
     VkSwapchainKHR swapChain;
 
     if (vkCreateSwapchainKHR(device, &swapChainCreateInfo, nullptr, &swapChain) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create swap chain!");
+        std::cerr << "Failed to create swap chain" << std::endl;
+        return 1;
+    }
+
+    // swap chain images and image views
+
+    std::vector<VkImage> swapChainImages;
+    vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr);
+
+    swapChainImages.resize(imageCount);
+    vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages.data());
+
+    std::vector<VkImageView> swapChainImageViews;
+    swapChainImageViews.resize(swapChainImages.size());
+
+    for (size_t i = 0; i < swapChainImages.size(); i++) {
+        VkImageViewCreateInfo swapChainImageCreateInfo{};
+        swapChainImageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        swapChainImageCreateInfo.image = swapChainImages[i];
+
+        swapChainImageCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        swapChainImageCreateInfo.format = swapChainImageFormat;
+
+        swapChainImageCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+        swapChainImageCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+        swapChainImageCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+        swapChainImageCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+        swapChainImageCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        swapChainImageCreateInfo.subresourceRange.baseMipLevel = 0;
+        swapChainImageCreateInfo.subresourceRange.levelCount = 1;
+        swapChainImageCreateInfo.subresourceRange.baseArrayLayer = 0;
+        swapChainImageCreateInfo.subresourceRange.layerCount = 1;
+
+        if (vkCreateImageView(device, &swapChainImageCreateInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) {
+            std::cerr << "Failed to create swap chain image views" << std::endl;
+            return 1;
+        }
+    }
+
+    // render pass
+    VkAttachmentDescription colorAttachment{};
+    colorAttachment.format = swapChainImageFormat;
+    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+    colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
+    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    VkAttachmentReference colorAttachmentRef{};
+    colorAttachmentRef.attachment = 0;
+    colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpass{};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &colorAttachmentRef;
+
+    VkRenderPass renderPass;
+    VkPipelineLayout pipelineLayout;
+
+    VkRenderPassCreateInfo renderPassInfo{};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    renderPassInfo.attachmentCount = 1;
+    renderPassInfo.pAttachments = &colorAttachment;
+    renderPassInfo.subpassCount = 1;
+    renderPassInfo.pSubpasses = &subpass;
+
+    if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
+        std::cerr << "Failed to create render pass" << std::endl;
+        return 1;
+    }
+
+    // swap chain framebuffers
+
+    std::vector<VkFramebuffer> swapChainFramebuffers;
+    swapChainFramebuffers.resize(swapChainImageViews.size());
+
+    for (size_t i = 0; i < swapChainImageViews.size(); i++) {
+        VkImageView attachments[] = {
+            swapChainImageViews[i]
+        };
+
+        VkFramebufferCreateInfo framebufferInfo{};
+        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebufferInfo.renderPass = renderPass;
+        framebufferInfo.attachmentCount = 1;
+        framebufferInfo.pAttachments = attachments;
+        framebufferInfo.width = swapChainExtent.width;
+        framebufferInfo.height = swapChainExtent.height;
+        framebufferInfo.layers = 1;
+
+        if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
+            std::cerr << "Failed to create framebuffer" << std::endl;
+            return 1;
+        }
     }
 
     // proceed to main setup
@@ -468,6 +571,22 @@ int main() {
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
+
+    std::cout << "Destroying swap chain image views..." << std::endl;
+
+    for (auto imageView : swapChainImageViews) {
+        vkDestroyImageView(device, imageView, nullptr);
+    }
+
+    std::cout << "Destroying swap chain framebuffers..." << std::endl;
+
+    for (auto framebuffer : swapChainFramebuffers) {
+        vkDestroyFramebuffer(device, framebuffer, nullptr);
+    }
+
+    std::cout << "Destroying render pass..." << std::endl;
+    vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+    vkDestroyRenderPass(device, renderPass, nullptr);
 
     std::cout << "Destroying swap chain..." << std::endl;
     vkDestroySwapchainKHR(device, swapChain, nullptr);
