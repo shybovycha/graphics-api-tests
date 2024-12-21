@@ -1,3 +1,4 @@
+#include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -9,6 +10,7 @@
 
 #include <vector>
 #include <iostream>
+#include <string>
 
 static void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
@@ -50,7 +52,7 @@ static bool isDeviceSuitable(VkPhysicalDevice device) {
     vkGetPhysicalDeviceProperties(device, &deviceProperties);
     vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
 
-    // on OSX this will always be false regardless of the real support for geometry shaders
+// on OSX this will always be false regardless of the real support for geometry shaders
 #ifndef __APPLE__
     if (!deviceFeatures.geometryShader) {
         std::cerr << "[isDeviceSuitable] Device does not support geometry shaders" << std::endl;
@@ -93,6 +95,34 @@ int main() {
         return 1;
     }
 
+    std::cout << "Check Vulkan validation layers..." << std::endl;
+
+    uint32_t layerCount;
+    vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+
+    std::vector<VkLayerProperties> availableLayers(layerCount);
+    vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+
+    const std::vector<const char *> validationLayers = {
+        "VK_LAYER_KHRONOS_validation"
+    };
+
+    for (const char *layerName : validationLayers) {
+        bool layerFound = false;
+
+        for (const auto &layerProperties : availableLayers) {
+            if (std::strcmp(layerName, layerProperties.layerName) == 0) {
+                layerFound = true;
+                break;
+            }
+        }
+
+        if (!layerFound) {
+            std::cerr << "Could not find requested validation layer '" << layerName << "'" << std::endl;
+            return 1;
+        }
+    }
+
     std::cout << "Initializing Vulkan..." << std::endl;
 
     // initialize Vulkan
@@ -124,6 +154,7 @@ int main() {
 
 #ifdef __APPLE__
     requiredExtensions.emplace_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+    requiredExtensions.emplace_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
 
     createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
 #endif
@@ -131,7 +162,10 @@ int main() {
     createInfo.enabledExtensionCount = (uint32_t)requiredExtensions.size();
     createInfo.ppEnabledExtensionNames = requiredExtensions.data();
 
-    createInfo.enabledLayerCount = 0;
+    createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+    createInfo.ppEnabledLayerNames = validationLayers.data();
+
+//    createInfo.enabledLayerCount = 0;
 
     std::cout << "Creating Vulkan instance..." << std::endl;
 
@@ -166,7 +200,7 @@ int main() {
 
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 
-    for (const auto& device : devices) {
+    for (const auto &device : devices) {
         if (isDeviceSuitable(device)) {
             physicalDevice = device;
             break;
@@ -191,6 +225,9 @@ int main() {
     queueCreateInfo.queueFamilyIndex = queueFamilyIndex;
     queueCreateInfo.queueCount = 1;
 
+    float queuePriority = 1.0f;
+    queueCreateInfo.pQueuePriorities = &queuePriority;
+
     VkPhysicalDeviceFeatures deviceFeatures{};
 
     VkDeviceCreateInfo deviceCreateInfo{};
@@ -201,7 +238,17 @@ int main() {
 
     deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
 
+#ifdef __APPLE__
+    std::vector<const char*> logicalDeviceExtensions = {
+        "VK_KHR_portability_subset"
+    };
+
+    deviceCreateInfo.enabledExtensionCount = (uint32_t) logicalDeviceExtensions.size();
+    deviceCreateInfo.ppEnabledExtensionNames = logicalDeviceExtensions.data();
+#else
     deviceCreateInfo.enabledExtensionCount = 0;
+#endif
+
     deviceCreateInfo.enabledLayerCount = 0;
 
     VkDevice device;
@@ -213,7 +260,7 @@ int main() {
         return 1;
     }
 
-    std::cout << "Creating queue..." << std::endl;
+    std::cout << "Obtaining queue..." << std::endl;
 
     VkQueue graphicsQueue;
     vkGetDeviceQueue(device, queueFamilyIndex, 0, &graphicsQueue);
@@ -229,27 +276,6 @@ int main() {
         return 1;
     }
 
-//    id windowHandle = glfwGetCocoaWindow(window);
-//    id viewHandle = getViewFromNSWindowPointer(windowHandle);
-//
-//    VkMacOSSurfaceCreateInfoMVK createInfo = {};
-//    createInfo.sType = VK_STRUCTURE_TYPE_MACOS_SURFACE_CREATE_INFO_MVK;
-//    createInfo.pNext = nullptr;
-//    createInfo.flags = 0;
-//    createInfo.pView = viewHandle;
-//
-//    PFN_vkCreateMacOSSurfaceMVK vkCreateMacOSSurfaceMVK;
-//    vkCreateMacOSSurfaceMVK = (PFN_vkCreateMacOSSurfaceMVK)vkGetInstanceProcAddr(instance, "vkCreateMacOSSurfaceMVK");
-//
-//    if (!vkCreateMacOSSurfaceMVK) {
-//        std::cerr << "Unabled to get pointer to function: vkCreateMacOSSurfaceMVK" << std::endl;
-//        return 1;
-//    }
-//
-//    if (vkCreateMacOSSurfaceMVK(instance, &createInfo, nullptr, &surface) != VK_SUCCESS) {
-//        std::cerr << "Failed to create surface" << std::endl;
-//        return 1;
-//    }
     // proceed to main setup
 
     std::cout << "Running main loop..." << std::endl;
@@ -271,6 +297,10 @@ int main() {
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
+
+    std::cout << "Destroying surface..." << std::endl;
+
+    vkDestroySurfaceKHR(instance, surface, nullptr);
 
     std::cout << "Destroying logical device..." << std::endl;
 
