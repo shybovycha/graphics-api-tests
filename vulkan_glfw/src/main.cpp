@@ -1,16 +1,13 @@
+// #include <vulkan/vulkan_core.h>
+
 #include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-//#define GLFW_EXPOSE_NATIVE_COCOA
-//#include <GLFW/glfw3native.h>
-
-//#define VK_USE_PLATFORM_MACOS_MVK
-//#include <vulkan/vulkan.h>
-
 #include <vector>
 #include <iostream>
 #include <string>
+#include <set>
 
 static void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
@@ -18,35 +15,50 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action, 
     }
 }
 
-static int findGraphicsQueueFamily(VkPhysicalDevice device) {
+struct QueueFamilies {
+    int graphicsQueueFamilyIndex;
+    int presentationQueueFamilyIndex;
+};
+
+static QueueFamilies findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface) {
     uint32_t queueFamilyCount = 0;
 
-    std::cout << "[findGraphicsQueueFamily] Get queue family count..." << std::endl;
+    std::cout << "[findQueueFamilies] Get queue family count..." << std::endl;
 
     vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
 
     std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
 
-    std::cout << "[findGraphicsQueueFamily] Get queue families..." << std::endl;
+    std::cout << "[findQueueFamilies] Get queue families..." << std::endl;
 
     vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
 
-    // bool hasGraphicsQueueFamily = queueFamilies.has([](auto& queueFamily) { return queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT; });
+    int graphicsQueueFamilyIndex = -1;
+    int presentationQueueFamilyIndex = -1;
 
-    std::cout << "[findGraphicsQueueFamily] Search for queue family..." << std::endl;
+    std::cout << "[findQueueFamilies] Search for queue family..." << std::endl;
 
     for (auto i = 0; i < queueFamilyCount; i++) {
         if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-            std::cout << "[findGraphicsQueueFamily] Found queue family at [" << i << "]" << std::endl;
+            std::cout << "[findQueueFamilies] Found graphics queue family at [" << i << "]" << std::endl;
 
-            return i;
+            graphicsQueueFamilyIndex = i;
+        }
+
+        VkBool32 presentSupport = false;
+        vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
+
+        if (presentSupport) {
+            std::cout << "[findQueueFamilies] Found presentation queue family at [" << i << "]" << std::endl;
+
+            presentationQueueFamilyIndex = i;
         }
     }
 
-    return -1;
+    return QueueFamilies{ .graphicsQueueFamilyIndex = graphicsQueueFamilyIndex, .presentationQueueFamilyIndex = presentationQueueFamilyIndex };
 }
 
-static bool isDeviceSuitable(VkPhysicalDevice device) {
+static bool isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface) {
     VkPhysicalDeviceProperties deviceProperties;
     VkPhysicalDeviceFeatures deviceFeatures;
     vkGetPhysicalDeviceProperties(device, &deviceProperties);
@@ -60,10 +72,12 @@ static bool isDeviceSuitable(VkPhysicalDevice device) {
     }
 #endif
 
-    bool hasQueue = findGraphicsQueueFamily(device) > -1;
+    auto queueFamilies = findQueueFamilies(device, surface);
 
-    if (!hasQueue) {
-        std::cerr << "[isDeviceSuitable] Device does not have a compatible queue" << std::endl;
+    bool hasQueueFamilies = queueFamilies.graphicsQueueFamilyIndex > -1 && queueFamilies.presentationQueueFamilyIndex > -1;
+
+    if (!hasQueueFamilies) {
+        std::cerr << "[isDeviceSuitable] Device does not have compatible queue families" << std::endl;
         return false;
     }
 
@@ -104,8 +118,7 @@ int main() {
     vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
 
     const std::vector<const char *> validationLayers = {
-        "VK_LAYER_KHRONOS_validation"
-    };
+        "VK_LAYER_KHRONOS_validation"};
 
     for (const char *layerName : validationLayers) {
         bool layerFound = false;
@@ -165,7 +178,7 @@ int main() {
     createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
     createInfo.ppEnabledLayerNames = validationLayers.data();
 
-//    createInfo.enabledLayerCount = 0;
+    //    createInfo.enabledLayerCount = 0;
 
     std::cout << "Creating Vulkan instance..." << std::endl;
 
@@ -179,6 +192,17 @@ int main() {
         }
 
         std::cerr << "Failed to create Vulkan instance: " << result << std::endl;
+        return 1;
+    }
+
+    // window surface
+
+    std::cout << "Creating window surface..." << std::endl;
+
+    VkSurfaceKHR surface;
+
+    if (glfwCreateWindowSurface(instance, window, NULL, &surface)) {
+        std::cerr << "Failed to create GLFW window surface" << std::endl;
         return 1;
     }
 
@@ -201,7 +225,7 @@ int main() {
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 
     for (const auto &device : devices) {
-        if (isDeviceSuitable(device)) {
+        if (isDeviceSuitable(device, surface)) {
             physicalDevice = device;
             break;
         }
@@ -213,37 +237,46 @@ int main() {
     }
 
     // logical device
-    auto queueFamilyIndex = findGraphicsQueueFamily(physicalDevice);
+    auto queueFamilies = findQueueFamilies(physicalDevice, surface);
 
-    if (queueFamilyIndex < 0) {
-        std::cerr << "Failed to obtain compatible queue" << std::endl;
+    if (queueFamilies.graphicsQueueFamilyIndex < 0) {
+        std::cerr << "Failed to obtain compatible graphics queue" << std::endl;
         return 1;
     }
 
-    VkDeviceQueueCreateInfo queueCreateInfo{};
-    queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queueCreateInfo.queueFamilyIndex = queueFamilyIndex;
-    queueCreateInfo.queueCount = 1;
+    if (queueFamilies.presentationQueueFamilyIndex < 0) {
+        std::cerr << "Failed to obtain compatible presentation queue" << std::endl;
+        return 1;
+    }
+
+    std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+    std::set<uint32_t> uniqueQueueFamilies = {(uint32_t) queueFamilies.graphicsQueueFamilyIndex, (uint32_t) queueFamilies.presentationQueueFamilyIndex};
 
     float queuePriority = 1.0f;
-    queueCreateInfo.pQueuePriorities = &queuePriority;
+    for (uint32_t queueFamily : uniqueQueueFamilies) {
+        VkDeviceQueueCreateInfo queueCreateInfo{};
+        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queueCreateInfo.queueFamilyIndex = queueFamily;
+        queueCreateInfo.queueCount = 1;
+        queueCreateInfo.pQueuePriorities = &queuePriority;
+        queueCreateInfos.push_back(queueCreateInfo);
+    }
 
     VkPhysicalDeviceFeatures deviceFeatures{};
 
     VkDeviceCreateInfo deviceCreateInfo{};
     deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
-    deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
-    deviceCreateInfo.queueCreateInfoCount = 1;
+    deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
+    deviceCreateInfo.queueCreateInfoCount = (uint32_t) queueCreateInfos.size();
 
     deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
 
 #ifdef __APPLE__
-    std::vector<const char*> logicalDeviceExtensions = {
-        "VK_KHR_portability_subset"
-    };
+    std::vector<const char *> logicalDeviceExtensions = {
+        "VK_KHR_portability_subset"};
 
-    deviceCreateInfo.enabledExtensionCount = (uint32_t) logicalDeviceExtensions.size();
+    deviceCreateInfo.enabledExtensionCount = (uint32_t)logicalDeviceExtensions.size();
     deviceCreateInfo.ppEnabledExtensionNames = logicalDeviceExtensions.data();
 #else
     deviceCreateInfo.enabledExtensionCount = 0;
@@ -263,18 +296,10 @@ int main() {
     std::cout << "Obtaining queue..." << std::endl;
 
     VkQueue graphicsQueue;
-    vkGetDeviceQueue(device, queueFamilyIndex, 0, &graphicsQueue);
+    vkGetDeviceQueue(device, (uint32_t) queueFamilies.graphicsQueueFamilyIndex, 0, &graphicsQueue);
 
-    // window surface
-
-    std::cout << "Creating window surface..." << std::endl;
-
-    VkSurfaceKHR surface;
-
-    if (glfwCreateWindowSurface(instance, window, NULL, &surface)) {
-        std::cerr << "Failed to create GLFW window surface" << std::endl;
-        return 1;
-    }
+    VkQueue presentQueue;
+    vkGetDeviceQueue(device, (uint32_t) queueFamilies.presentationQueueFamilyIndex, 0, &presentQueue);
 
     // proceed to main setup
 
