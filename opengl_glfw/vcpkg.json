@@ -1,0 +1,20 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "shoot-them",
+  "version-string": "1.0.2",
+  "dependencies": [
+    {
+      "name": "glad",
+      "version>=": "0.1.36"
+    },
+    {
+      "name": "glfw3",
+      "version>=": "3.4"
+    },
+    {
+      "name": "stb",
+      "version>=": "2024-07-29#1"
+    }
+  ],
+  "builtin-baseline": "4fcf123fe53c63db265b5841a5aeff06cec375a1"
+}
