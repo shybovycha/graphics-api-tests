@@ -1,0 +1,28 @@
+[package]
+name = "rust_wgpu"
+version = "1.0.0"
+edition = "2021"
+
+[dependencies]
+bytemuck = { features = ["derive"], version = "1.21.0" }
+glam = { features = ["bytemuck"], version = "0.29.2" }
+wgpu = { version = "23.0.1", default-features = false, features = [
+    "wgsl",
+    "dx12",
+    "metal",
+] }
+winit = "0.30.6"
+env_logger = "0.11.6"
+log = "0.4.22"
+pollster = "0.4.0"
+
+# cfg-if = ""
+# encase = { features = ["glam"] }
+# flume = ""
+# getrandom = ""
+# ktx2 = ""
+# nanorand = ""
+# noise = ""
+# obj = ""
+# png = ""
+# web-time = ""
