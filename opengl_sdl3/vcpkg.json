@@ -4,13 +4,10 @@
     "version-string": "1.0.2",
     "dependencies": [
         {
-            "name": "glad",
-            "version>=": "0.1.36"
+            "name": "glad"
         },
         {
-            "name": "sdl3",
-            "version>=": "3.1.6-preview#2"
+            "name": "sdl3"
         }
-    ],
-    "builtin-baseline": "4fcf123fe53c63db265b5841a5aeff06cec375a1"
+    ]
 }

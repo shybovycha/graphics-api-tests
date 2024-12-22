@@ -4,17 +4,13 @@
   "version-string": "1.0.2",
   "dependencies": [
     {
-      "name": "glad",
-      "version>=": "0.1.36"
+      "name": "glad"
     },
     {
-      "name": "glfw3",
-      "version>=": "3.4"
+      "name": "glfw3"
     },
     {
-      "name": "stb",
-      "version>=": "2024-07-29#1"
+      "name": "stb"
     }
-  ],
-  "builtin-baseline": "4fcf123fe53c63db265b5841a5aeff06cec375a1"
+  ]
 }
