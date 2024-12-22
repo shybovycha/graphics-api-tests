@@ -3,4 +3,6 @@ vcpkg_installed/
 build/
 CMakeFiles/
 CMakeCache.txt
-.fleet
+.fleet/
+.vs/
+CMakeSettings.json

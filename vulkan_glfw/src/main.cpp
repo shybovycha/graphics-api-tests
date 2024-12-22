@@ -5,6 +5,7 @@
 #include <iostream>
 #include <string>
 #include <set>
+#include <algorithm>
 
 struct QueueFamilies {
     int graphicsQueueFamilyIndex;
