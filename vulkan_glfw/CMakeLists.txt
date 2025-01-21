@@ -41,3 +41,9 @@ target_link_libraries(${EXECUTABLE_NAME} PRIVATE glfw)
 
 find_package(Stb REQUIRED)
 target_include_directories(${EXECUTABLE_NAME} PRIVATE ${Stb_INCLUDE_DIR})
+
+# Copy resources
+add_custom_command(
+    TARGET ${EXECUTABLE_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_LIST_DIR}/shaders $<TARGET_FILE_DIR:${EXECUTABLE_NAME}>/shaders
+)
