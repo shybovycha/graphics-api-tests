@@ -42,6 +42,9 @@ target_link_libraries(${EXECUTABLE_NAME} PRIVATE glfw)
 find_package(Stb REQUIRED)
 target_include_directories(${EXECUTABLE_NAME} PRIVATE ${Stb_INCLUDE_DIR})
 
+find_package(glm CONFIG REQUIRED)
+target_link_libraries(${EXECUTABLE_NAME} PRIVATE glm::glm)
+
 # Copy resources
 add_custom_command(
     TARGET ${EXECUTABLE_NAME} POST_BUILD
