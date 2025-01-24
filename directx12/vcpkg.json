@@ -1,0 +1,9 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "shoot-them",
+  "version-string": "1.0.2",
+  "dependencies": [
+
+  ],
+  "builtin-baseline": "f06267da58f3c06b3a1aff9cbf5c2906e595ebc9"
+}
